@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 public class CarController : MonoBehaviour
@@ -11,9 +12,14 @@ public class CarController : MonoBehaviour
 
     [Header("Property")]
     [SerializeField] private Rigidbody carRb;
-    public float motorPower, brakePower;
-    private float gasInput, steeringInput, brakeInput, speed, slipAngle;
+
+    [SerializeField] private TextMeshProUGUI rpmTmp, gearTmp;
     public AnimationCurve steeringCurve;
+    
+    public float motorPower, brakePower, maxSpeed;
+    private float _gasInput, _steeringInput, _brakeInput, _speed, _slipAngle, _speedClamped;
+    public float rpm, redLine, idleRpm;
+    public int currentGear;
 
     [Header("Particle System")]
     [SerializeField] private GameObject smokePrefab;
@@ -23,9 +29,12 @@ public class CarController : MonoBehaviour
         InstantiateSmoke();
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
-        speed = carRb.velocity.magnitude;
+        rpmTmp.text = $"RPM: {rpm}";
+        gearTmp.text = $"{currentGear+1}";
+        _speed = wheelColls.WheelRL.rpm*wheelColls.WheelRL.radius * 2f * Mathf.PI / 10f;
+        _speedClamped = Mathf.Lerp(_speedClamped, _speed,Time.fixedDeltaTime);
         CheckInput();
         ApplyMotor();
         ApplySteering();
@@ -90,40 +99,40 @@ public class CarController : MonoBehaviour
 
     private void CheckInput()
     {
-        gasInput = Input.GetAxis("Vertical");
-        steeringInput = Input.GetAxis("Horizontal");
-        slipAngle = Vector3.Angle(transform.forward, carRb.velocity - transform.forward);
+        _gasInput = Input.GetAxis("Vertical");
+        _steeringInput = Input.GetAxis("Horizontal");
+        _slipAngle = Vector3.Angle(transform.forward, carRb.velocity - transform.forward);
 
-        if (slipAngle < 120f)
+        if (_slipAngle < 120f)
         {
-            if (gasInput < 0)
+            if (_gasInput < 0)
             {
-                brakeInput = Mathf.Abs(gasInput);
-                gasInput = 0;
+                _brakeInput = Mathf.Abs(_gasInput);
+                _gasInput = 0;
             }
             else
             {
-                brakeInput = 0;
+                _brakeInput = 0;
             }
         }
         else
         {
-            brakeInput = 0;
+            _brakeInput = 0;
         }
     }
 
     private void ApplyBrake()
     {
-        wheelColls.WheelFL.brakeTorque = brakeInput * brakePower * 0.7f;
-        wheelColls.WheelFR.brakeTorque = brakeInput * brakePower * 0.7f;
+        wheelColls.WheelFL.brakeTorque = _brakeInput * brakePower * 0.7f;
+        wheelColls.WheelFR.brakeTorque = _brakeInput * brakePower * 0.7f;
 
-        wheelColls.WheelRL.brakeTorque = brakeInput * brakePower * 0.3f;
-        wheelColls.WheelRR.brakeTorque = brakeInput * brakePower * 0.3f;
+        wheelColls.WheelRL.brakeTorque = _brakeInput * brakePower * 0.3f;
+        wheelColls.WheelRR.brakeTorque = _brakeInput * brakePower * 0.3f;
     }
 
     private void ApplySteering()
     {
-        float steeringAngle = steeringInput * steeringCurve.Evaluate(speed);
+        float steeringAngle = _steeringInput * steeringCurve.Evaluate(_speed);
         steeringAngle += Vector3.SignedAngle(transform.forward, carRb.velocity + transform.forward, Vector3.up);
         steeringAngle = Mathf.Clamp(steeringAngle, -90f, 90f);
         wheelColls.WheelFL.steerAngle = steeringAngle;
@@ -132,8 +141,16 @@ public class CarController : MonoBehaviour
 
     private void ApplyMotor()
     {
-        wheelColls.WheelRL.motorTorque = motorPower * gasInput;
-        wheelColls.WheelRR.motorTorque = motorPower * gasInput;
+        if (_speed < maxSpeed)
+        {
+            wheelColls.WheelRL.motorTorque = motorPower * _gasInput;
+            wheelColls.WheelRR.motorTorque = motorPower * _gasInput;
+        }
+        else
+        {
+            wheelColls.WheelRL.motorTorque = 0;
+            wheelColls.WheelRR.motorTorque = 0;
+        }
     }
 
     private void UpdateWheel()
@@ -152,6 +169,12 @@ public class CarController : MonoBehaviour
         wheelColl.GetWorldPose(out pos, out quat);
         wheelMesh.transform.position = pos;
         wheelMesh.transform.rotation = quat;
+    }
+
+    public float GetSpeedRatio()
+    {
+        var gas = Mathf.Clamp(_gasInput,0.5f, 1f);
+        return _speedClamped * gas / maxSpeed;
     }
 }
 
