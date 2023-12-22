@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace DriftCar
 {
@@ -10,6 +11,7 @@ namespace DriftCar
         [SerializeField] private WheelColliders wheelColliders;
         [SerializeField] private WheelMeshes wheelMeshes;
         [SerializeField] private WheelParticles wheelParticles;
+        [SerializeField] private WheelTrails wheelTrails;
 
         [Header("Property")] [SerializeField] private Rigidbody carRb;
 
@@ -30,12 +32,15 @@ namespace DriftCar
         public float increaseGearRpm, decreaseGearRpm;
         public float changeGearTime = 0.5f;
 
-        [Header("Particle System")] [SerializeField]
-        private GameObject smokePrefab;
+        [FormerlySerializedAs("smokeWheel")]
+        [FormerlySerializedAs("smokePrefab")]
+        [Header("Particle System")] 
+        [SerializeField] private GameObject smokeTrail;
+        [SerializeField] private GameObject skidmarkTrail;
 
         private void Start()
         {
-            SetUpSmoke();
+            SetUpEffect();
         }
 
         private void FixedUpdate()
@@ -53,29 +58,52 @@ namespace DriftCar
             UpdateWheel();
         }
 
-        private void SetUpSmoke()
+        private void SetUpEffect()
         {
             var frontLeftTransform = wheelColliders.frontLeft.transform;
             var frontRightTransform = wheelColliders.frontRight.transform;
             var rearLeftTransform = wheelColliders.rearLeft.transform;
             var rearRightTransform = wheelColliders.rearRight.transform;
-            
-            wheelParticles.frontLeft =
-                Instantiate(smokePrefab,
-                    frontLeftTransform.position - Vector3.up * wheelColliders.frontLeft.radius,
-                    Quaternion.identity, frontLeftTransform).GetComponent<ParticleSystem>();
-            wheelParticles.frontRight =
-                Instantiate(smokePrefab,
-                    frontRightTransform.position - Vector3.up * wheelColliders.frontRight.radius,
-                    Quaternion.identity, frontRightTransform).GetComponent<ParticleSystem>();
-            wheelParticles.rearLeft =
-                Instantiate(smokePrefab,
-                    rearLeftTransform.position - Vector3.up * wheelColliders.rearLeft.radius,
-                    Quaternion.identity, rearLeftTransform).GetComponent<ParticleSystem>();
-            wheelParticles.rearRight =
-                Instantiate(smokePrefab,
-                    rearRightTransform.position - Vector3.up * wheelColliders.rearRight.radius,
-                    Quaternion.identity, rearRightTransform).GetComponent<ParticleSystem>();
+                
+            if (smokeTrail)
+            {
+                wheelParticles.frontLeft =
+                    Instantiate(smokeTrail,
+                        frontLeftTransform.position - Vector3.up * wheelColliders.frontLeft.radius,
+                        Quaternion.identity, frontLeftTransform).GetComponent<ParticleSystem>();
+                wheelParticles.frontRight =
+                    Instantiate(smokeTrail,
+                        frontRightTransform.position - Vector3.up * wheelColliders.frontRight.radius,
+                        Quaternion.identity, frontRightTransform).GetComponent<ParticleSystem>();
+                wheelParticles.rearLeft =
+                    Instantiate(smokeTrail,
+                        rearLeftTransform.position - Vector3.up * wheelColliders.rearLeft.radius,
+                        Quaternion.identity, rearLeftTransform).GetComponent<ParticleSystem>();
+                wheelParticles.rearRight =
+                    Instantiate(smokeTrail,
+                        rearRightTransform.position - Vector3.up * wheelColliders.rearRight.radius,
+                        Quaternion.identity, rearRightTransform).GetComponent<ParticleSystem>();
+            }
+
+            if (skidmarkTrail)
+            {
+                wheelTrails.frontLeft =
+                    Instantiate(skidmarkTrail,
+                        frontLeftTransform.position - Vector3.up * wheelColliders.frontLeft.radius,
+                        Quaternion.identity, frontLeftTransform).GetComponent<TrailRenderer>();
+                wheelTrails.frontRight =
+                    Instantiate(skidmarkTrail,
+                        frontRightTransform.position - Vector3.up * wheelColliders.frontRight.radius,
+                        Quaternion.identity, frontRightTransform).GetComponent<TrailRenderer>();
+                wheelTrails.rearLeft =
+                    Instantiate(skidmarkTrail,
+                        rearLeftTransform.position - Vector3.up * wheelColliders.rearLeft.radius,
+                        Quaternion.identity, rearLeftTransform).GetComponent<TrailRenderer>();
+                wheelTrails.rearRight =
+                    Instantiate(skidmarkTrail,
+                        rearRightTransform.position - Vector3.up * wheelColliders.rearRight.radius,
+                        Quaternion.identity, rearRightTransform).GetComponent<TrailRenderer>();
+            }
         }
 
         private void CheckParticles()
@@ -93,37 +121,45 @@ namespace DriftCar
             if ((Mathf.Abs(wheelHits[0].sidewaysSlip) + Mathf.Abs(wheelHits[0].forwardSlip) > slipAllowance))
             {
                 wheelParticles.frontLeft.Play();
+                wheelTrails.frontLeft.emitting = true;
             }
             else
             {
                 wheelParticles.frontLeft.Stop();
+                wheelTrails.frontLeft.emitting = false;
             }
 
             if ((Mathf.Abs(wheelHits[1].sidewaysSlip) + Mathf.Abs(wheelHits[1].forwardSlip) > slipAllowance))
             {
                 wheelParticles.frontRight.Play();
+                wheelTrails.frontRight.emitting = true;
             }
             else
             {
                 wheelParticles.frontRight.Stop();
+                wheelTrails.frontRight.emitting = false;
             }
 
             if ((Mathf.Abs(wheelHits[2].sidewaysSlip) + Mathf.Abs(wheelHits[2].forwardSlip) > slipAllowance))
             {
                 wheelParticles.rearLeft.Play();
+                wheelTrails.rearLeft.emitting = true;
             }
             else
             {
                 wheelParticles.rearLeft.Stop();
+                wheelTrails.rearLeft.emitting = false;
             }
 
             if ((Mathf.Abs(wheelHits[3].sidewaysSlip) + Mathf.Abs(wheelHits[3].forwardSlip) > slipAllowance))
             {
                 wheelParticles.rearRight.Play();
+                wheelTrails.rearRight.emitting = true;
             }
             else
             {
                 wheelParticles.rearRight.Stop();
+                wheelTrails.rearRight.emitting = false;
             }
         }
 
@@ -313,6 +349,15 @@ namespace DriftCar
         public ParticleSystem frontRight;
         public ParticleSystem rearLeft;
         public ParticleSystem rearRight;
+    }
+
+    [Serializable]
+    public class WheelTrails
+    {
+        public TrailRenderer frontLeft;
+        public TrailRenderer frontRight;
+        public TrailRenderer rearLeft;
+        public TrailRenderer rearRight;
     }
 
     public enum GearState

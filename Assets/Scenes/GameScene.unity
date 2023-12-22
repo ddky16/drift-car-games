@@ -372,6 +372,11 @@ MonoBehaviour:
     frontRight: {fileID: 0}
     rearLeft: {fileID: 0}
     rearRight: {fileID: 0}
+  wheelTrails:
+    frontLeft: {fileID: 0}
+    frontRight: {fileID: 0}
+    rearLeft: {fileID: 0}
+    rearRight: {fileID: 0}
   carRb: {fileID: 1067660946}
   rpmTmp: {fileID: 847684040}
   gearTmp: {fileID: 1628116815}
@@ -447,10 +452,11 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  increaseGearRpm: 850
-  decreaseGearRpm: 800
-  changeGearTime: 0.5
-  smokePrefab: {fileID: 2991209207947831601, guid: 1fe7f5ebf0412df429ffbfce6df17d2a, type: 3}
+  increaseGearRpm: 1250
+  decreaseGearRpm: 1000
+  changeGearTime: 0.3
+  smokeTrail: {fileID: 2991209207947831601, guid: 1fe7f5ebf0412df429ffbfce6df17d2a, type: 3}
+  skidmarkTrail: {fileID: 8013410056982457443, guid: f50e32d19c322184988790679b340e39, type: 3}
 --- !u!146 &695839743 stripped
 WheelCollider:
   m_CorrespondingSourceObject: {fileID: 1057494946909100755, guid: 133308cdb8794744caaef026bde9e1f0, type: 3}
