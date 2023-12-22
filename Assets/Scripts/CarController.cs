@@ -1,206 +1,325 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-public class CarController : MonoBehaviour
+namespace DriftCar
 {
-    [SerializeField] private WheelColliders wheelColls;
-    [SerializeField] private WheelMeshes wheelMeshes;
-    [SerializeField] private WheelParticles wheelParticles;
-
-    [Header("Property")]
-    [SerializeField] private Rigidbody carRb;
-
-    [SerializeField] private TextMeshProUGUI rpmTmp, gearTmp;
-    public AnimationCurve steeringCurve;
-    
-    public float motorPower, brakePower, maxSpeed;
-    private float _gasInput, _steeringInput, _brakeInput, _speed, _slipAngle, _speedClamped;
-    public float rpm, redLine, idleRpm;
-    public int currentGear;
-
-    [Header("Particle System")]
-    [SerializeField] private GameObject smokePrefab;
-
-    private void Start()
+    public class CarController : MonoBehaviour
     {
-        InstantiateSmoke();
-    }
+        [SerializeField] private WheelColliders wheelColliders;
+        [SerializeField] private WheelMeshes wheelMeshes;
+        [SerializeField] private WheelParticles wheelParticles;
 
-    private void FixedUpdate()
-    {
-        rpmTmp.text = $"RPM: {rpm}";
-        gearTmp.text = $"{currentGear+1}";
-        _speed = wheelColls.WheelRL.rpm*wheelColls.WheelRL.radius * 2f * Mathf.PI / 10f;
-        _speedClamped = Mathf.Lerp(_speedClamped, _speed,Time.fixedDeltaTime);
-        CheckInput();
-        ApplyMotor();
-        ApplySteering();
-        ApplyBrake();
-        CheckParticles();
-        UpdateWheel();
-    }
+        [Header("Property")] [SerializeField] private Rigidbody carRb;
 
-    private void InstantiateSmoke()
-    {
-        wheelParticles.WheelFL = Instantiate(smokePrefab, wheelColls.WheelFL.transform.position - Vector3.up * wheelColls.WheelFL.radius, Quaternion.identity, wheelColls.WheelFL.transform).GetComponent<ParticleSystem>();
-        wheelParticles.WheelFR = Instantiate(smokePrefab, wheelColls.WheelFR.transform.position - Vector3.up * wheelColls.WheelFR.radius, Quaternion.identity, wheelColls.WheelFR.transform).GetComponent<ParticleSystem>();
-        wheelParticles.WheelRL = Instantiate(smokePrefab, wheelColls.WheelRL.transform.position - Vector3.up * wheelColls.WheelRL.radius, Quaternion.identity, wheelColls.WheelRL.transform).GetComponent<ParticleSystem>();
-        wheelParticles.WheelRR = Instantiate(smokePrefab, wheelColls.WheelRR.transform.position - Vector3.up * wheelColls.WheelRR.radius, Quaternion.identity, wheelColls.WheelRR.transform).GetComponent<ParticleSystem>();
-    }
+        [SerializeField] private TextMeshProUGUI rpmTmp, gearTmp;
+        public AnimationCurve steeringCurve;
 
-    private void CheckParticles()
-    {
-        WheelHit[] wheelHits = new WheelHit[4];
+        public float motorPower, brakePower, maxSpeed;
+        private float _gasInput, _steeringInput, _brakeInput, _speed, _slipAngle, _speedClamped;
+        public float rpm, redLine, idleRpm;
+        public int currentGear;
 
-        wheelColls.WheelFL.GetGroundHit(out wheelHits[0]);
-        wheelColls.WheelFR.GetGroundHit(out wheelHits[1]);
+        public float[] gearRatios;
+        public float differentialRatio;
+        private float _currentTorque,_clutch,_wheelRpm;
+        public AnimationCurve horsePowerToRpmCurve;
+        
+        private GearState _gearState;
+        public float increaseGearRpm, decreaseGearRpm;
+        public float changeGearTime = 0.5f;
 
-        wheelColls.WheelRL.GetGroundHit(out wheelHits[2]);
-        wheelColls.WheelRR.GetGroundHit(out wheelHits[3]);
+        [Header("Particle System")] [SerializeField]
+        private GameObject smokePrefab;
 
-        float slipAllowance = 0.3f;
-
-        if ((Mathf.Abs(wheelHits[0].sidewaysSlip) + Mathf.Abs(wheelHits[0].forwardSlip) > slipAllowance))
+        private void Start()
         {
-            wheelParticles.WheelFL.Play();
+            SetUpSmoke();
         }
-        else
-        {
-            wheelParticles.WheelFL.Stop();
-        }
-        if ((Mathf.Abs(wheelHits[1].sidewaysSlip) + Mathf.Abs(wheelHits[1].forwardSlip) > slipAllowance))
-        {
-            wheelParticles.WheelFR.Play();
-        }
-        else
-        {
-            wheelParticles.WheelFR.Stop();
-        }
-        if (Mathf.Abs(wheelHits[2].sidewaysSlip) + Mathf.Abs(wheelHits[2].forwardSlip) > slipAllowance)
-        {
-            wheelParticles.WheelRL.Play();
-        }
-        else
-        {
-            wheelParticles.WheelRL.Stop();
-        }
-        if ((Mathf.Abs(wheelHits[3].sidewaysSlip) + Mathf.Abs(wheelHits[3].forwardSlip) > slipAllowance))
-        {
-            wheelParticles.WheelRR.Play();
-        }
-        else
-        {
-            wheelParticles.WheelRR.Stop();
-        }
-    }
 
-    private void CheckInput()
-    {
-        _gasInput = Input.GetAxis("Vertical");
-        _steeringInput = Input.GetAxis("Horizontal");
-        _slipAngle = Vector3.Angle(transform.forward, carRb.velocity - transform.forward);
-
-        if (_slipAngle < 120f)
+        private void FixedUpdate()
         {
-            if (_gasInput < 0)
+            var gear = (_gearState == GearState.Neutral) ? "N" : (currentGear + 1).ToString();
+            rpmTmp.text = $"RPM: {rpm:0}";
+            gearTmp.text = $"GEAR: {gear}";
+            _speed = wheelColliders.rearLeft.rpm * wheelColliders.rearLeft.radius * 2f * Mathf.PI / 10f;
+            _speedClamped = Mathf.Lerp(_speedClamped, _speed, Time.fixedDeltaTime);
+            CheckInput();
+            ApplyMotor();
+            ApplySteering();
+            ApplyBrake();
+            CheckParticles();
+            UpdateWheel();
+        }
+
+        private void SetUpSmoke()
+        {
+            var frontLeftTransform = wheelColliders.frontLeft.transform;
+            var frontRightTransform = wheelColliders.frontRight.transform;
+            var rearLeftTransform = wheelColliders.rearLeft.transform;
+            var rearRightTransform = wheelColliders.rearRight.transform;
+            
+            wheelParticles.frontLeft =
+                Instantiate(smokePrefab,
+                    frontLeftTransform.position - Vector3.up * wheelColliders.frontLeft.radius,
+                    Quaternion.identity, frontLeftTransform).GetComponent<ParticleSystem>();
+            wheelParticles.frontRight =
+                Instantiate(smokePrefab,
+                    frontRightTransform.position - Vector3.up * wheelColliders.frontRight.radius,
+                    Quaternion.identity, frontRightTransform).GetComponent<ParticleSystem>();
+            wheelParticles.rearLeft =
+                Instantiate(smokePrefab,
+                    rearLeftTransform.position - Vector3.up * wheelColliders.rearLeft.radius,
+                    Quaternion.identity, rearLeftTransform).GetComponent<ParticleSystem>();
+            wheelParticles.rearRight =
+                Instantiate(smokePrefab,
+                    rearRightTransform.position - Vector3.up * wheelColliders.rearRight.radius,
+                    Quaternion.identity, rearRightTransform).GetComponent<ParticleSystem>();
+        }
+
+        private void CheckParticles()
+        {
+            WheelHit[] wheelHits = new WheelHit[4];
+
+            wheelColliders.frontLeft.GetGroundHit(out wheelHits[0]);
+            wheelColliders.frontRight.GetGroundHit(out wheelHits[1]);
+
+            wheelColliders.rearLeft.GetGroundHit(out wheelHits[2]);
+            wheelColliders.rearRight.GetGroundHit(out wheelHits[3]);
+
+            float slipAllowance = 0.2f;
+
+            if ((Mathf.Abs(wheelHits[0].sidewaysSlip) + Mathf.Abs(wheelHits[0].forwardSlip) > slipAllowance))
             {
-                _brakeInput = Mathf.Abs(_gasInput);
-                _gasInput = 0;
+                wheelParticles.frontLeft.Play();
+            }
+            else
+            {
+                wheelParticles.frontLeft.Stop();
+            }
+
+            if ((Mathf.Abs(wheelHits[1].sidewaysSlip) + Mathf.Abs(wheelHits[1].forwardSlip) > slipAllowance))
+            {
+                wheelParticles.frontRight.Play();
+            }
+            else
+            {
+                wheelParticles.frontRight.Stop();
+            }
+
+            if ((Mathf.Abs(wheelHits[2].sidewaysSlip) + Mathf.Abs(wheelHits[2].forwardSlip) > slipAllowance))
+            {
+                wheelParticles.rearLeft.Play();
+            }
+            else
+            {
+                wheelParticles.rearLeft.Stop();
+            }
+
+            if ((Mathf.Abs(wheelHits[3].sidewaysSlip) + Mathf.Abs(wheelHits[3].forwardSlip) > slipAllowance))
+            {
+                wheelParticles.rearRight.Play();
+            }
+            else
+            {
+                wheelParticles.rearRight.Stop();
+            }
+        }
+
+        private void CheckInput()
+        {
+            _gasInput = Input.GetAxis("Vertical");
+            _steeringInput = Input.GetAxis("Horizontal");
+
+            var forward = transform.forward;
+            _slipAngle = Vector3.Angle(forward, carRb.velocity-forward);
+            
+            if (_gearState != GearState.Changing)
+            {
+                if (_gearState == GearState.Neutral)
+                {
+                    _clutch = 0;
+                    if (Mathf.Abs(_gasInput) > 0) _gearState = GearState.Running;
+                }
+                else
+                {
+                    _clutch = Input.GetKey(KeyCode.LeftShift) ? 0 : Mathf.Lerp(_clutch, 1, Time.deltaTime);
+                }
+            }
+            else
+            {
+                _clutch = 0;
+            }
+            
+            if (_slipAngle < 120f)
+            {
+                if (_gasInput < 0)
+                {
+                    _brakeInput = Mathf.Abs(_gasInput);
+                    _gasInput = 0;
+                }
+                else
+                {
+                    _brakeInput = 0;
+                }
             }
             else
             {
                 _brakeInput = 0;
             }
         }
-        else
+
+        private void ApplyBrake()
         {
-            _brakeInput = 0;
+            wheelColliders.frontLeft.brakeTorque = _brakeInput * brakePower * 0.7f;
+            wheelColliders.frontRight.brakeTorque = _brakeInput * brakePower * 0.7f;
+
+            wheelColliders.rearLeft.brakeTorque = _brakeInput * brakePower * 0.3f;
+            wheelColliders.rearRight.brakeTorque = _brakeInput * brakePower * 0.3f;
+        }
+
+        private void ApplySteering()
+        {
+            var forward = transform.forward;
+            float steeringAngle = _steeringInput * steeringCurve.Evaluate(_speed);
+            steeringAngle += Vector3.SignedAngle(forward, carRb.velocity + forward, Vector3.up);
+            steeringAngle = Mathf.Clamp(steeringAngle, -90f, 90f);
+            wheelColliders.frontLeft.steerAngle = steeringAngle;
+            wheelColliders.frontRight.steerAngle = steeringAngle;
+        }
+
+        private void ApplyMotor()
+        {
+            _currentTorque = CalculateTorque();
+            wheelColliders.rearLeft.motorTorque = _currentTorque * _gasInput;
+            wheelColliders.rearRight.motorTorque = _currentTorque * _gasInput;
+        }
+
+        private float CalculateTorque()
+        {
+            float torque = 0;
+            
+            if (rpm < idleRpm + 200 && _gasInput == 0 && currentGear == 0)
+            {
+                _gearState = GearState.Neutral;
+            }
+            
+            if (_gearState == GearState.Running && _clutch > 0)
+            {
+                if (rpm > increaseGearRpm)
+                    StartCoroutine(ChangeGear(1));
+                else if (rpm < decreaseGearRpm)
+                    StartCoroutine(ChangeGear(-1));
+            }
+            
+            if (Mathf.Abs(_gasInput) > 0)
+            {
+                if (_clutch < 0.1f)
+                {
+                    rpm = Mathf.Lerp(rpm, Mathf.Max(idleRpm, redLine * _gasInput) + UnityEngine.Random.Range(-50, 50),
+                        Time.deltaTime);
+                }
+                else
+                {
+                    _wheelRpm = Mathf.Abs((wheelColliders.rearRight.rpm + wheelColliders.rearLeft.rpm) / 2f) * gearRatios[currentGear] * differentialRatio;
+                    rpm = Mathf.Lerp(rpm, Mathf.Max(idleRpm - 100, _wheelRpm), Time.deltaTime * 3f);
+                    torque = (horsePowerToRpmCurve.Evaluate(rpm / redLine) * motorPower / rpm) * gearRatios[currentGear] * differentialRatio * 5252f * _clutch;
+                }
+            }
+
+            return torque;
+        }
+
+        private void UpdateWheel()
+        {
+            SetWheel(wheelColliders.frontLeft, wheelMeshes.frontLeft);
+            SetWheel(wheelColliders.frontRight, wheelMeshes.frontRight);
+            SetWheel(wheelColliders.rearLeft, wheelMeshes.rearLeft);
+            SetWheel(wheelColliders.rearRight, wheelMeshes.rearRight);
+        }
+
+        private void SetWheel(WheelCollider wheelColl, MeshRenderer wheelMesh)
+        {
+            wheelColl.GetWorldPose(out Vector3 pos, out Quaternion quat);
+            var wheelTransform = wheelMesh.transform;
+            wheelTransform.position = pos;
+            wheelTransform.rotation = quat;
+        }
+
+        public float GetSpeedRatio()
+        {
+            var gas = Mathf.Clamp(_gasInput, 0.5f, 1f);
+            return _speedClamped * gas / maxSpeed;
+        }
+
+        private IEnumerator ChangeGear(int gearChange)
+        {
+            _gearState = GearState.CheckingChange;
+
+            if (currentGear + gearChange >= 0)
+            {
+                if (gearChange > 0)
+                {
+                    yield return new WaitForSeconds(0.7f);
+                    if (rpm < increaseGearRpm || currentGear >= gearRatios.Length - 1)
+                    {
+                        _gearState = GearState.Running;
+                        yield break;
+                    }
+                }
+                if (gearChange < 0)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                    if (rpm > decreaseGearRpm || currentGear <= 0)
+                    {
+                        _gearState = GearState.Running;
+                        yield break;
+                    }
+                }
+
+                _gearState = GearState.Changing;
+                yield return new WaitForSeconds(changeGearTime);
+                currentGear += gearChange;
+            }
+
+            if (_gearState != GearState.Neutral)
+                _gearState = GearState.Running;
         }
     }
 
-    private void ApplyBrake()
+    [Serializable]
+    public class WheelColliders
     {
-        wheelColls.WheelFL.brakeTorque = _brakeInput * brakePower * 0.7f;
-        wheelColls.WheelFR.brakeTorque = _brakeInput * brakePower * 0.7f;
-
-        wheelColls.WheelRL.brakeTorque = _brakeInput * brakePower * 0.3f;
-        wheelColls.WheelRR.brakeTorque = _brakeInput * brakePower * 0.3f;
+        public WheelCollider frontLeft;
+        public WheelCollider frontRight;
+        public WheelCollider rearLeft;
+        public WheelCollider rearRight;
     }
 
-    private void ApplySteering()
+    [Serializable]
+    public class WheelMeshes
     {
-        float steeringAngle = _steeringInput * steeringCurve.Evaluate(_speed);
-        steeringAngle += Vector3.SignedAngle(transform.forward, carRb.velocity + transform.forward, Vector3.up);
-        steeringAngle = Mathf.Clamp(steeringAngle, -90f, 90f);
-        wheelColls.WheelFL.steerAngle = steeringAngle;
-        wheelColls.WheelFR.steerAngle = steeringAngle;
+        public MeshRenderer frontLeft;
+        public MeshRenderer frontRight;
+        public MeshRenderer rearLeft;
+        public MeshRenderer rearRight;
     }
 
-    private void ApplyMotor()
+    [Serializable]
+    public class WheelParticles
     {
-        if (_speed < maxSpeed)
-        {
-            wheelColls.WheelRL.motorTorque = motorPower * _gasInput;
-            wheelColls.WheelRR.motorTorque = motorPower * _gasInput;
-        }
-        else
-        {
-            wheelColls.WheelRL.motorTorque = 0;
-            wheelColls.WheelRR.motorTorque = 0;
-        }
+        public ParticleSystem frontLeft;
+        public ParticleSystem frontRight;
+        public ParticleSystem rearLeft;
+        public ParticleSystem rearRight;
     }
 
-    private void UpdateWheel()
+    public enum GearState
     {
-        SetWheel(wheelColls.WheelFL, wheelMeshes.WheelFL);
-        SetWheel(wheelColls.WheelFR, wheelMeshes.WheelFR);
-        SetWheel(wheelColls.WheelRL, wheelMeshes.WheelRL);
-        SetWheel(wheelColls.WheelRR, wheelMeshes.WheelRR);
+        Neutral,
+        Running,
+        CheckingChange,
+        Changing
     }
-
-    private void SetWheel(WheelCollider wheelColl, MeshRenderer wheelMesh)
-    {
-        Quaternion quat;
-        Vector3 pos;
-
-        wheelColl.GetWorldPose(out pos, out quat);
-        wheelMesh.transform.position = pos;
-        wheelMesh.transform.rotation = quat;
-    }
-
-    public float GetSpeedRatio()
-    {
-        var gas = Mathf.Clamp(_gasInput,0.5f, 1f);
-        return _speedClamped * gas / maxSpeed;
-    }
-}
-
-[Serializable]
-public class WheelColliders
-{
-    public WheelCollider WheelFL;
-    public WheelCollider WheelFR;
-    public WheelCollider WheelRL;
-    public WheelCollider WheelRR;
-}
-
-[Serializable]
-public class WheelMeshes
-{
-    public MeshRenderer WheelFL;
-    public MeshRenderer WheelFR;
-    public MeshRenderer WheelRL;
-    public MeshRenderer WheelRR;
-}
-
-[Serializable]
-public class WheelParticles
-{
-    public ParticleSystem WheelFL;
-    public ParticleSystem WheelFR;
-    public ParticleSystem WheelRL;
-    public ParticleSystem WheelRR;
 }

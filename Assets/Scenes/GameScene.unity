@@ -357,21 +357,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5b4c736226453d499d81718af6e4137, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wheelColls:
-    WheelFL: {fileID: 695839746}
-    WheelFR: {fileID: 695839745}
-    WheelRL: {fileID: 695839744}
-    WheelRR: {fileID: 695839743}
+  wheelColliders:
+    frontLeft: {fileID: 695839746}
+    frontRight: {fileID: 695839745}
+    rearLeft: {fileID: 695839744}
+    rearRight: {fileID: 695839743}
   wheelMeshes:
-    WheelFL: {fileID: 695839750}
-    WheelFR: {fileID: 695839749}
-    WheelRL: {fileID: 695839748}
-    WheelRR: {fileID: 695839747}
+    frontLeft: {fileID: 695839750}
+    frontRight: {fileID: 695839749}
+    rearLeft: {fileID: 695839748}
+    rearRight: {fileID: 695839747}
   wheelParticles:
-    WheelFL: {fileID: 0}
-    WheelFR: {fileID: 0}
-    WheelRL: {fileID: 0}
-    WheelRR: {fileID: 0}
+    frontLeft: {fileID: 0}
+    frontRight: {fileID: 0}
+    rearLeft: {fileID: 0}
+    rearRight: {fileID: 0}
   carRb: {fileID: 1067660946}
   rpmTmp: {fileID: 847684040}
   gearTmp: {fileID: 1628116815}
@@ -399,13 +399,57 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  motorPower: 500
+  motorPower: 100
   brakePower: 50000
-  maxSpeed: 150
+  maxSpeed: 50
   rpm: 0
   redLine: 6500
   idleRpm: 800
   currentGear: 0
+  gearRatios:
+  - 3
+  - 2.5
+  - 2
+  - 1.5
+  - 1
+  - 0.8
+  differentialRatio: 3
+  horsePowerToRpmCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5043478
+      value: 1.0022206
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.51032025
+      value: -0.00020202436
+      inSlope: Infinity
+      outSlope: Infinity
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  increaseGearRpm: 850
+  decreaseGearRpm: 800
+  changeGearTime: 0.5
   smokePrefab: {fileID: 2991209207947831601, guid: 1fe7f5ebf0412df429ffbfce6df17d2a, type: 3}
 --- !u!146 &695839743 stripped
 WheelCollider:
@@ -622,8 +666,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
-  m_fontColor: {r: 1, g: 1, b: 1, a: 1}
+    rgba: 4278190080
+  m_fontColor: {r: 0, g: 0, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -993,8 +1037,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
-  m_fontColor: {r: 1, g: 1, b: 1, a: 1}
+    rgba: 4278190080
+  m_fontColor: {r: 0, g: 0, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
